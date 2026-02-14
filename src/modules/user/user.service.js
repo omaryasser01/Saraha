@@ -5,18 +5,16 @@ import {
   encrypt,
 } from "../../common/utils/security/encrypt.security.js";
 import { hash, compare } from "../../common/utils/security/hash.security.js";
-import {
-  generateToken,
-  verifyToken,
-} from "../../common/utils/token.service.js";
+import { generateToken } from "../../common/utils/token.service.js";
 import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
-import { hashSync, compareSync } from "bcrypt";
-import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 
+//======================================Sign UP======================================================
+
 export const signUp = async (req, res, next) => {
-  const { userName, email, password, cPassword, age, gender, phone } = req.body;
+  const { userName, email, password, cPassword, age, gender, phone, provider } =
+    req.body;
 
   if (password !== cPassword) {
     throw new Error("password doesn't match", { cause: 400 });
@@ -35,11 +33,14 @@ export const signUp = async (req, res, next) => {
       age,
       gender,
       phone: encrypt(phone),
+      provider,
     },
   });
 
   successResp({ res, status: 201, message: "success SignUp", data: user });
 };
+
+//======================================Sign In======================================================
 
 export const signIn = async (req, res, next) => {
   const { email, password } = req.body;
@@ -59,13 +60,11 @@ export const signIn = async (req, res, next) => {
     throw new Error("invaild password");
   }
 
-  const { password: _, ...safeUser } = user.toObject();
-
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
     secret_key: "kkkey",
     options: {
-      expiresIn: "1day",
+      expiresIn: "1d",
       noTimestamp: true,
       // issuer: "http://localhost:3000",
       // audience: "http://localhost:4000",
@@ -75,6 +74,8 @@ export const signIn = async (req, res, next) => {
 
   successResp({ res, data: { access_token } });
 };
+
+//======================================Get User======================================================
 
 export const getProfile = async (req, res, next) => {
   //const { id } = req.params;

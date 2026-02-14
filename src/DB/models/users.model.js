@@ -49,7 +49,7 @@ const userShcema = mongoose.Schema(
     provider: {
       type: String,
       enum: Object.values(providerEnum),
-      default: providerEnum.Systme,
+      default: providerEnum.System,
     },
   },
   {

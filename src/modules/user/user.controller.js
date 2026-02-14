@@ -5,7 +5,7 @@ import { authentication } from "../../common/middleware/authentication.js";
 const userRouter = Router();
 
 userRouter.post("/signup", US.signUp);
-userRouter.get("/", US.signIn);
+userRouter.post("/", US.signIn);
 userRouter.get("/profile", authentication, US.getProfile);
 
 export default userRouter;
