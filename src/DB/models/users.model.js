@@ -44,7 +44,14 @@ const userShcema = mongoose.Schema(
 
     profilePicture: String,
 
-    confirmed: Boolean,
+    confirmed: {
+      type: Boolean,
+      default: false,
+    },
+
+    otp: String,
+
+    otpExpires: Date,
 
     provider: {
       type: String,

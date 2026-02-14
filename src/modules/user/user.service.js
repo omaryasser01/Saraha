@@ -1,10 +1,10 @@
-import { providerEnum } from "../../common/enum/user.enum.js";
 import { successResp } from "../../common/utils/resp.success.js";
 import {
   decrypt,
   encrypt,
 } from "../../common/utils/security/encrypt.security.js";
 import { hash, compare } from "../../common/utils/security/hash.security.js";
+import { sendEmail } from "../../common/utils/sendEmail.js";
 import { generateToken } from "../../common/utils/token.service.js";
 import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
@@ -24,6 +24,8 @@ export const signUp = async (req, res, next) => {
     throw new Error("email already exists");
   }
 
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
   const user = await db_service.create({
     model: userModel,
     data: {
@@ -34,10 +36,19 @@ export const signUp = async (req, res, next) => {
       gender,
       phone: encrypt(phone),
       provider,
+      otp,
+      otpExpires: Date.now() + 10 * 60 * 1000,
     },
   });
 
-  successResp({ res, status: 201, message: "success SignUp", data: user });
+  await sendEmail(email, otp);
+
+  successResp({
+    res,
+    status: 201,
+    message: "success SignUp, OTP sent to your email",
+    data: user,
+  });
 };
 
 //======================================Sign In======================================================
@@ -78,6 +89,13 @@ export const signIn = async (req, res, next) => {
 //======================================Get User======================================================
 
 export const getProfile = async (req, res, next) => {
+  successResp({
+    res,
+    status: 200,
+    message: "done",
+    data: { ...req.user._doc, phone: decrypt(req.user.phone) },
+  });
+
   //const { id } = req.params;
   // const { auth } = req.headers;
 
@@ -85,11 +103,4 @@ export const getProfile = async (req, res, next) => {
   //   token: auth,
   //   secret_key: "kkkey",
   // });
-
-  successResp({
-    res,
-    status: 200,
-    message: "done",
-    data: { ...req.user._doc, phone: decrypt(req.user.phone) },
-  });
 };
