@@ -104,3 +104,34 @@ export const getProfile = async (req, res, next) => {
   //   secret_key: "kkkey",
   // });
 };
+
+//======================================verify OTP======================================================
+
+export const verifyACC = async (req, res, next) => {
+  const { email, otp } = req.body;
+
+  const user = await db_service.findOne({
+    model: userModel,
+    filter: { email },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (otp !== user.otp || user.otpExpires < Date.now()) {
+    throw new Error("inValid or expired otp");
+  }
+
+  user.otp = null;
+  user.otpExpires = null;
+  user.confirmed = true;
+
+  await user.save();
+
+  successResp({
+    res,
+    status: 200,
+    message: "Account verified successfully",
+  });
+};
