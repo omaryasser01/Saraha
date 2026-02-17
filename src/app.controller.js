@@ -2,11 +2,12 @@ import express from "express";
 import userModel from "./DB/models/users.model.js";
 import userRouter from "./modules/user/user.controller.js";
 import checkDB from "./DB/connectionDB.js";
+import cors from "cors";
 const app = express();
 const port = 3000;
 
 const bootstrap = () => {
-  app.use(express.json());
+  app.use(cors(), express.json());
 
   app.get("/", (req, res, next) => {
     res.status(200).json({ message: "Welcome to Saraha APP ......  " });

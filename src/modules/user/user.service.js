@@ -9,6 +9,8 @@ import { generateToken } from "../../common/utils/token.service.js";
 import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
 import { v4 as uuidv4 } from "uuid";
+import { OAuth2Client } from "google-auth-library";
+import { providerEnum } from "../../common/enum/user.enum.js";
 
 //======================================Sign UP======================================================
 
@@ -49,6 +51,56 @@ export const signUp = async (req, res, next) => {
     message: "success SignUp, OTP sent to your email",
     data: user,
   });
+};
+
+//======================================Sign UP with Gmail======================================================
+
+export const signUpWithGmail = async (req, res, next) => {
+  const { idToken } = req.body;
+  console.log(idToken);
+
+  const client = new OAuth2Client();
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience:
+      "23523230131-dkgv0mbvrfolsc5hl3bl99744inceeja.apps.googleusercontent.com",
+  });
+  const payload = ticket.getPayload();
+
+  const { email, email_verified, name, picture } = payload;
+
+  let user = await db_service.findOne({ model: userModel, filter: { email } });
+
+  if (!user) {
+    user = await db_service.create({
+      model: userModel,
+      data: {
+        email: email,
+        confirmed: email_verified,
+        userName: name,
+        profilePicture: picture,
+        provider: providerEnum.Google,
+      },
+    });
+  }
+
+  if (user.provider == providerEnum.System) {
+    throw new Error("please login using system", { cause: 400 });
+  }
+
+  const access_token = generateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: "kkkey",
+    options: {
+      expiresIn: "1d",
+      noTimestamp: true,
+      // issuer: "http://localhost:3000",
+      // audience: "http://localhost:4000",
+      jwtid: uuidv4(),
+    },
+  });
+
+  successResp({ res, message: "success login", data: { access_token } });
 };
 
 //======================================Sign In======================================================

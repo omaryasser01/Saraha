@@ -7,3 +7,8 @@ export const providerEnum = {
   System: "System",
   Google: "Google",
 };
+
+export const roleEnum = {
+  user: "user",
+  admin: "admin",
+};
