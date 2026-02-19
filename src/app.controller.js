@@ -3,8 +3,9 @@ import userModel from "./DB/models/users.model.js";
 import userRouter from "./modules/user/user.controller.js";
 import checkDB from "./DB/connectionDB.js";
 import cors from "cors";
+import { Port } from "../config/config.service.js";
 const app = express();
-const port = 3000;
+const port = Port;
 
 const bootstrap = () => {
   app.use(cors(), express.json());

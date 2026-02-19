@@ -11,6 +11,8 @@ import userModel from "../../DB/models/users.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { OAuth2Client } from "google-auth-library";
 import { providerEnum } from "../../common/enum/user.enum.js";
+import joi from "joi";
+import { SaltRounds, Secret_key } from "../../../config/config.service.js";
 
 //======================================Sign UP======================================================
 
@@ -33,7 +35,10 @@ export const signUp = async (req, res, next) => {
     data: {
       userName,
       email,
-      password: hash({ plainText: password, saltRounds: 12 }),
+      password: hash({
+        plainText: password,
+        saltRounds: SaltRounds,
+      }),
       age,
       gender,
       phone: encrypt(phone),
@@ -90,7 +95,7 @@ export const signUpWithGmail = async (req, res, next) => {
 
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
-    secret_key: "kkkey",
+    secret_key: Secret_key,
     options: {
       expiresIn: "1d",
       noTimestamp: true,
