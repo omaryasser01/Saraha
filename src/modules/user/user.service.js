@@ -11,8 +11,11 @@ import userModel from "../../DB/models/users.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { OAuth2Client } from "google-auth-library";
 import { providerEnum } from "../../common/enum/user.enum.js";
-import joi from "joi";
-import { SaltRounds, Secret_key } from "../../../config/config.service.js";
+import {
+  Audience,
+  SaltRounds,
+  Secret_key,
+} from "../../../config/config.service.js";
 
 //======================================Sign UP======================================================
 
@@ -62,13 +65,11 @@ export const signUp = async (req, res, next) => {
 
 export const signUpWithGmail = async (req, res, next) => {
   const { idToken } = req.body;
-  console.log(idToken);
 
   const client = new OAuth2Client();
   const ticket = await client.verifyIdToken({
     idToken,
-    audience:
-      "23523230131-dkgv0mbvrfolsc5hl3bl99744inceeja.apps.googleusercontent.com",
+    audience: Audience,
   });
   const payload = ticket.getPayload();
 
@@ -99,8 +100,6 @@ export const signUpWithGmail = async (req, res, next) => {
     options: {
       expiresIn: "1d",
       noTimestamp: true,
-      // issuer: "http://localhost:3000",
-      // audience: "http://localhost:4000",
       jwtid: uuidv4(),
     },
   });
@@ -130,12 +129,10 @@ export const signIn = async (req, res, next) => {
 
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
-    secret_key: "kkkey",
+    secret_key: Secret_key,
     options: {
       expiresIn: "1d",
       noTimestamp: true,
-      // issuer: "http://localhost:3000",
-      // audience: "http://localhost:4000",
       jwtid: uuidv4(),
     },
   });
