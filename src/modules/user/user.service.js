@@ -23,42 +23,42 @@ export const signUp = async (req, res, next) => {
   const { userName, email, password, cPassword, age, gender, phone, provider } =
     req.body;
 
-  if (password !== cPassword) {
-    throw new Error("password doesn't match", { cause: 400 });
-  }
+  //   if (password !== cPassword) {
+  //     throw new Error("password doesn't match", { cause: 400 });
+  //   }
 
-  if (await db_service.findOne({ model: userModel, filter: { email } })) {
-    throw new Error("email already exists");
-  }
+  //   if (await db_service.findOne({ model: userModel, filter: { email } })) {
+  //     throw new Error("email already exists");
+  //   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  //   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  const user = await db_service.create({
-    model: userModel,
-    data: {
-      userName,
-      email,
-      password: hash({
-        plainText: password,
-        saltRounds: SaltRounds,
-      }),
-      age,
-      gender,
-      phone: encrypt(phone),
-      provider,
-      otp,
-      otpExpires: Date.now() + 10 * 60 * 1000,
-    },
-  });
+  //   const user = await db_service.create({
+  //     model: userModel,
+  //     data: {
+  //       userName,
+  //       email,
+  //       password: hash({
+  //         plainText: password,
+  //         saltRounds: SaltRounds,
+  //       }),
+  //       age,
+  //       gender,
+  //       phone: encrypt(phone),
+  //       provider,
+  //       otp,
+  //       otpExpires: Date.now() + 10 * 60 * 1000,
+  //     },
+  //   });
 
-  await sendEmail(email, otp);
+  //   await sendEmail(email, otp);
 
-  successResp({
-    res,
-    status: 201,
-    message: "success SignUp, OTP sent to your email",
-    data: user,
-  });
+  //   successResp({
+  //     res,
+  //     status: 201,
+  //     message: "success SignUp, OTP sent to your email",
+  //     data: user,
+  //   });
 };
 
 //======================================Sign UP with Gmail======================================================
