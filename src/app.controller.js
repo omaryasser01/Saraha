@@ -9,6 +9,7 @@ const port = Port;
 
 const bootstrap = () => {
   app.use(cors(), express.json());
+  app.use("/uploads", express.static("uploads"));
 
   app.get("/", (req, res, next) => {
     res.status(200).json({ message: "Welcome to Saraha APP ......  " });

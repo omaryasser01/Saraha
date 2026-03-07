@@ -1,6 +1,7 @@
 import { verifyToken } from "../utils/token.service.js";
 import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
+import { Prefix } from "../../../config/config.service.js";
 
 export const authentication = async (req, res, next) => {
   const { authorization } = req.headers;
@@ -10,7 +11,7 @@ export const authentication = async (req, res, next) => {
   }
 
   const [prefix, token] = authorization.split(" ");
-  if (prefix !== "bearer") {
+  if (prefix !== Prefix) {
     throw new Error("invalid prefix");
   }
 

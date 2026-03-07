@@ -16,10 +16,14 @@ export const SaltRounds = process.env.SaltRounds;
 
 export const DB_URi = process.env.DB_URi;
 
-export const Secret_key = process.env.secret_key;
+export const Access_Secret_key = process.env.access_Secret_key;
+
+export const Refresh_Secret_key = process.env.refresh_Secret_key;
 
 export const Audience = process.env.audience;
 
 export const User = process.env.user;
 
 export const Pass = process.env.pass;
+
+export const Prefix = process.env.prefix;

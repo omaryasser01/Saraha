@@ -50,7 +50,16 @@ const userShcema = mongoose.Schema(
       default: genderEnum.male,
     },
 
-    profilePicture: String,
+    profilePicture: {
+      secure_url: { type: String, required: true },
+      public_id: { type: String, required: true },
+    },
+    // coverpics: [
+    //   {
+    //     secure_url: { type: String, required: true },
+    //     public_id: { type: String, required: true },
+    //   },
+    // ],
 
     confirmed: {
       type: Boolean,

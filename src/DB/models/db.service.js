@@ -19,6 +19,23 @@ export const findOne = async ({ model, filter = {}, options = {} } = {}) => {
   return await doc.exec();
 };
 
+export const findById = async ({ model, id, options } = {}) => {
+  const doc = model.findById(id);
+  if (options.populate) {
+    doc.populate(options.populate);
+  }
+  if (options.skip) {
+    doc.skip(options.skip);
+  }
+  if (options.limit) {
+    doc.limit(options.limit);
+  }
+  if (options.select) {
+    doc.select(options.select);
+  }
+  return await doc.exec();
+};
+
 export const updateOne = async ({
   model,
   filter = {},

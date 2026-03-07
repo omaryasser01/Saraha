@@ -5,7 +5,10 @@ import {
 } from "../../common/utils/security/encrypt.security.js";
 import { hash, compare } from "../../common/utils/security/hash.security.js";
 import { sendEmail } from "../../common/utils/sendEmail.js";
-import { generateToken } from "../../common/utils/token.service.js";
+import {
+  generateToken,
+  verifyToken,
+} from "../../common/utils/token.service.js";
 import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
 import { v4 as uuidv4 } from "uuid";
@@ -14,8 +17,11 @@ import { providerEnum } from "../../common/enum/user.enum.js";
 import {
   Audience,
   SaltRounds,
-  Secret_key,
+  Access_Secret_key,
+  Refresh_Secret_key,
+  Prefix,
 } from "../../../config/config.service.js";
+import cloudinary from "../../common/utils/cloudinary.js";
 
 //======================================Sign UP======================================================
 
@@ -23,42 +29,54 @@ export const signUp = async (req, res, next) => {
   const { userName, email, password, cPassword, age, gender, phone, provider } =
     req.body;
 
-  //   if (password !== cPassword) {
-  //     throw new Error("password doesn't match", { cause: 400 });
-  //   }
+  console.log(req.file);
 
-  //   if (await db_service.findOne({ model: userModel, filter: { email } })) {
-  //     throw new Error("email already exists");
-  //   }
+  if (password !== cPassword) {
+    throw new Error("password doesn't match", { cause: 400 });
+  }
 
-  //   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  if (await db_service.findOne({ model: userModel, filter: { email } })) {
+    throw new Error("email already exists");
+  }
 
-  //   const user = await db_service.create({
-  //     model: userModel,
-  //     data: {
-  //       userName,
-  //       email,
-  //       password: hash({
-  //         plainText: password,
-  //         saltRounds: SaltRounds,
-  //       }),
-  //       age,
-  //       gender,
-  //       phone: encrypt(phone),
-  //       provider,
-  //       otp,
-  //       otpExpires: Date.now() + 10 * 60 * 1000,
-  //     },
-  //   });
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  //   await sendEmail(email, otp);
+  const { secure_url, public_id } = await cloudinary.uploader.upload(
+    req.file.path,
+    {
+      folder: "uploads",
+    },
+  );
 
-  //   successResp({
-  //     res,
-  //     status: 201,
-  //     message: "success SignUp, OTP sent to your email",
-  //     data: user,
-  //   });
+  const user = await db_service.create({
+    model: userModel,
+    data: {
+      userName,
+      email,
+      cPassword,
+      password: hash({
+        plainText: password,
+        saltRounds: SaltRounds,
+      }),
+      age,
+      gender,
+      phone: encrypt(phone),
+      provider,
+      otp,
+      otpExpires: Date.now() + 10 * 60 * 1000,
+      profilePicture: { secure_url, public_id },
+      //coverpics: arr_paths,
+    },
+  });
+
+  await sendEmail(email, otp);
+
+  successResp({
+    res,
+    status: 201,
+    message: "success SignUp, OTP sent to your email",
+    data: user,
+  });
 };
 
 //======================================Sign UP with Gmail======================================================
@@ -96,7 +114,7 @@ export const signUpWithGmail = async (req, res, next) => {
 
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
-    secret_key: Secret_key,
+    secret_key: Access_Secret_key,
     options: {
       expiresIn: "1d",
       noTimestamp: true,
@@ -129,7 +147,60 @@ export const signIn = async (req, res, next) => {
 
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
-    secret_key: Secret_key,
+    secret_key: Access_Secret_key,
+    options: {
+      expiresIn: "1d",
+      noTimestamp: true,
+      jwtid: uuidv4(),
+    },
+  });
+  const refresh_token = generateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: Refresh_Secret_key,
+    options: {
+      expiresIn: "1y",
+      noTimestamp: true,
+      jwtid: uuidv4(),
+    },
+  });
+
+  successResp({ res, data: { access_token, refresh_token } });
+};
+
+//==============================Refresh token====================================================
+
+export const refreshToken = async (req, res, next) => {
+  const { authorization } = req.headers;
+
+  if (!authorization) {
+    throw new Error("token not exist");
+  }
+
+  const [prefix, token] = authorization.split(" ");
+  if (prefix !== Prefix) {
+    throw new Error("invalid prefix");
+  }
+
+  const decoded = verifyToken({
+    token,
+    secret_key: Refresh_Secret_key,
+  });
+
+  if (!decoded || !decoded?.id) {
+    throw new Error("inValid token");
+  }
+
+  const user = await db_service.findOne({
+    model: userModel,
+    filter: { _id: decoded.id },
+  });
+  if (!user) {
+    throw new Error("user not exist", { cause: 400 });
+  }
+
+  const access_token = generateToken({
+    payload: { id: user._id, email: user.email },
+    secret_key: Access_Secret_key,
     options: {
       expiresIn: "1d",
       noTimestamp: true,
@@ -137,7 +208,7 @@ export const signIn = async (req, res, next) => {
     },
   });
 
-  successResp({ res, data: { access_token } });
+  successResp({ res, message: "success", data: { access_token } });
 };
 
 //======================================Get User======================================================
@@ -188,4 +259,25 @@ export const verifyACC = async (req, res, next) => {
     status: 200,
     message: "Account verified successfully",
   });
+};
+
+//========================================share profile=============================
+export const shareProfile = async (req, res, next) => {
+  const { id } = req.params;
+
+  const user = await db_service.findById({
+    model: userModel,
+    id: id,
+    options: {
+      select: "-password",
+    },
+  });
+
+  if (!user) {
+    throw new Error("user not exist");
+  }
+
+  user.phone = decrypt(user.phone);
+
+  successResp({ res, data: user });
 };
