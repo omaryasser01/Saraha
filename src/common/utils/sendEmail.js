@@ -10,10 +10,16 @@ export const sendEmail = async (to, otp) => {
     },
   });
 
-  await transporter.sendMail({
+  const info = await transporter.sendMail({
     from: User,
     to,
-    subject: "Verify your account",
+    subject: "Welcome to Saraha App - Your OTP Code",
     html: `<h2>Your OTP is: ${otp}</h2>`,
   });
+
+  return console.log(info.accepted.length > 0 ? true : false);
+};
+
+export const generateOTP = async () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };

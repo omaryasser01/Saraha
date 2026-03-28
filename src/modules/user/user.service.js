@@ -4,7 +4,7 @@ import {
   encrypt,
 } from "../../common/utils/security/encrypt.security.js";
 import { hash, compare } from "../../common/utils/security/hash.security.js";
-import { sendEmail } from "../../common/utils/sendEmail.js";
+import { generateOTP, sendEmail } from "../../common/utils/sendEmail.js";
 import {
   generateToken,
   verifyToken,
@@ -22,14 +22,16 @@ import {
   Prefix,
 } from "../../../config/config.service.js";
 import cloudinary from "../../common/utils/cloudinary.js";
+import { randomUUID } from "crypto";
+import revokeTokenModel from "../../DB/models/revokeToken.model.js";
+import * as redis_services from "../../DB/redis/redis.service.js";
+import { set } from "mongoose";
 
 //======================================Sign UP======================================================
 
 export const signUp = async (req, res, next) => {
   const { userName, email, password, cPassword, age, gender, phone, provider } =
     req.body;
-
-  console.log(req.file);
 
   if (password !== cPassword) {
     throw new Error("password doesn't match", { cause: 400 });
@@ -39,14 +41,14 @@ export const signUp = async (req, res, next) => {
     throw new Error("email already exists");
   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
   const { secure_url, public_id } = await cloudinary.uploader.upload(
     req.file.path,
     {
       folder: "uploads",
     },
   );
+
+  let otp = await generateOTP();
 
   const user = await db_service.create({
     model: userModel,
@@ -70,6 +72,18 @@ export const signUp = async (req, res, next) => {
   });
 
   await sendEmail(email, otp);
+
+  await redis_services.setValue({
+    key: redis_services.otp_key(email),
+    value: hash({ plainText: `${otp}` }),
+    ttl: 2 * 60,
+  });
+
+  await redis_services.setValue({
+    key: redis_services.otp_count(email),
+    value: 1,
+    ttl: 2 * 60,
+  });
 
   successResp({
     res,
@@ -132,7 +146,11 @@ export const signIn = async (req, res, next) => {
 
   const user = await db_service.findOne({
     model: userModel,
-    filter: { email },
+    filter: {
+      email,
+      confirmed: { $exists: true },
+      provider: providerEnum.System,
+    },
   });
 
   if (!user) {
@@ -145,22 +163,25 @@ export const signIn = async (req, res, next) => {
     throw new Error("invaild password");
   }
 
+  const jwtid = randomUUID();
+
   const access_token = generateToken({
     payload: { id: user._id, email: user.email },
     secret_key: Access_Secret_key,
     options: {
-      expiresIn: "1d",
-      noTimestamp: true,
-      jwtid: uuidv4(),
+      expiresIn: "1h",
+      noTimestamp: false,
+      jwtid,
     },
   });
+
   const refresh_token = generateToken({
     payload: { id: user._id, email: user.email },
     secret_key: Refresh_Secret_key,
     options: {
-      expiresIn: "1y",
-      noTimestamp: true,
-      jwtid: uuidv4(),
+      expiresIn: "1h",
+      noTimestamp: false,
+      jwtid,
     },
   });
 
@@ -235,29 +256,104 @@ export const getProfile = async (req, res, next) => {
 export const verifyACC = async (req, res, next) => {
   const { email, otp } = req.body;
 
-  const user = await db_service.findOne({
+  const otpValue = await redis_services.get(redis_services.otp_key(email));
+  if (!otpValue) {
+    throw new Error("OTP expired");
+  }
+  if (!compare({ plainText: otp, cipherText: otpValue })) {
+    throw new Error("inValid OTP");
+  }
+
+  const user = await db_service.findOneAndUpdate({
     model: userModel,
-    filter: { email },
+    filter: {
+      email,
+      provider: providerEnum.System,
+      //confirmed: { $exists: false },
+    },
+    update: { confirmed: true },
   });
 
   if (!user) {
     throw new Error("User not found");
   }
 
-  if (otp !== user.otp || user.otpExpires < Date.now()) {
-    throw new Error("inValid or expired otp");
-  }
-
-  user.otp = null;
-  user.otpExpires = null;
-  user.confirmed = true;
-
-  await user.save();
+  await redis_services.deleteKey(redis_services.otp_key(email));
 
   successResp({
     res,
     status: 200,
     message: "Account verified successfully",
+  });
+};
+// if (otp !== user.otp || user.otpExpires < Date.now()) {
+//   throw new Error("inValid or expired otp");
+// }
+
+// user.otp = null;
+// user.otpExpires = null;
+// user.confirmed = true;
+
+// await user.save();
+
+//======================================resend OTP======================================================
+
+export const resendOTP = async (req, res, next) => {
+  const { email } = req.body;
+
+  const user = await db_service.findOne({
+    model: userModel,
+    filter: {
+      email,
+      provider: providerEnum.System,
+      //confirmed: { $exists: false },
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found or already confirmed");
+  }
+
+  const block = await redis_services.ttl(redis_services.block_otp(email));
+  if (block > 0) {
+    throw new Error(
+      `You have exceeded the maximum number of OTP requests. Please try again after ${block} seconds.`,
+    );
+  }
+
+  const ttl = await redis_services.ttl(redis_services.otp_key(email));
+  if (ttl > 0) {
+    throw new Error(`Please wait ${ttl} seconds before requesting a new OTP`);
+  }
+
+  const otp_count = await redis_services.get(redis_services.otp_count(email));
+  if (otp_count >= 3) {
+    await redis_services.setValue({
+      key: redis_services.block_otp(email),
+      value: 1,
+      ttl: 60 * 7,
+    });
+    throw new Error(
+      "You have exceeded the maximum number of OTP requests. Please try again later.",
+    );
+  }
+
+  let otp = await generateOTP();
+
+  await sendEmail(user.email, otp);
+
+  await redis_services.setValue({
+    key: redis_services.otp_key(email),
+    value: hash({ plainText: `${otp}` }),
+    ttl: 2 * 60,
+  });
+
+  await redis_services.increment(redis_services.otp_count(email));
+
+  successResp({
+    res,
+    status: 200,
+    message: "New OTP sent to your email",
   });
 };
 
@@ -280,4 +376,63 @@ export const shareProfile = async (req, res, next) => {
   user.phone = decrypt(user.phone);
 
   successResp({ res, data: user });
+};
+
+//========================================update user=============================
+export const updateProfile = async (req, res, next) => {
+  let { firstName, lastName, gender, phone } = req.body;
+
+  if (phone) {
+    phone = encrypt(phone);
+  }
+
+  const user = await db_service.findOneAndUpdate({
+    model: userModel,
+    filter: { _id: req.user._id },
+    update: { firstName, lastName, gender, phone },
+  });
+
+  if (!user) {
+    throw new Error("user not exist");
+  }
+
+  successResp({ res, data: user });
+};
+
+//========================================update password=============================
+export const updatePassword = async (req, res, next) => {
+  let { oldPass, newPass } = req.body;
+
+  console.log(oldPass);
+  console.log(req.user.password);
+  if (!compare({ plainText: oldPass, cipherText: req.user.password })) {
+    throw new Error("inValid old password");
+  }
+
+  const hashed = hash({ plainText: newPass });
+
+  req.user.password = hashed;
+
+  await req.user.save();
+
+  successResp({ res });
+};
+
+//========================================log out=============================
+export const logOut = async (req, res, next) => {
+  const { flag } = req.query;
+
+  if (flag == "all") {
+    req.user.changeCred = new Date();
+    await req.user.save();
+    await redis_services.deleteKey(await keys(`revoketokeen::${req.user._id}`));
+  } else {
+    await redis_services.setValue({
+      key: `revoketokeen::${req.user._id}::${req.decode.jti}`,
+      value: `${req.decode.jti}`,
+      ttl: req.decode.exp - Math.floor(Date.now() / 1000),
+    });
+  }
+
+  successResp({ res });
 };

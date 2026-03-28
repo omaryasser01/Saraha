@@ -66,10 +66,6 @@ const userShcema = mongoose.Schema(
       default: false,
     },
 
-    otp: String,
-
-    otpExpires: Date,
-
     provider: {
       type: String,
       enum: Object.values(providerEnum),
@@ -79,6 +75,10 @@ const userShcema = mongoose.Schema(
       type: String,
       enum: Object.values(roleEnum),
       default: roleEnum.user,
+    },
+    changeCred: {
+      type: Date,
+      //default: Date.now,
     },
   },
   {

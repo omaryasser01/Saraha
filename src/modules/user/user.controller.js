@@ -26,12 +26,27 @@ userRouter.get(
   US.getProfile,
 );
 
-userRouter.post("/otp", US.verifyACC);
+userRouter.post("/otp", validation(UV.verifyOTPSchema), US.verifyACC);
+userRouter.post("/resend-otp", US.resendOTP);
 userRouter.get("/refresh_token", US.refreshToken);
+
 userRouter.get(
   "/profile/:id",
   validation(UV.shareProfileschema),
   US.shareProfile,
 );
+userRouter.patch(
+  "/updateuser",
+  validation(UV.updateUserSchema),
+  authentication,
+  US.updateProfile,
+);
+userRouter.patch(
+  "/updatePassword",
+  validation(UV.updatePassSchema),
+  authentication,
+  US.updatePassword,
+);
+userRouter.post("/logOut", authentication, US.logOut);
 
 export default userRouter;

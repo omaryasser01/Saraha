@@ -62,3 +62,27 @@ export const shareProfileschema = {
     id: generalRules.id.required(),
   }).required(),
 };
+
+export const updateUserSchema = {
+  body: Joi.object({
+    firstName: Joi.string(),
+    lastName: Joi.string(),
+    gender: Joi.string().valid(...Object.values(genderEnum)),
+    phone: Joi.string(),
+  }).required(),
+};
+
+export const updatePassSchema = {
+  body: Joi.object({
+    newPass: Joi.string().required(),
+    oldPass: Joi.string().required(),
+    cPassword: Joi.string().valid(Joi.ref("newPass")).required(),
+  }).required(),
+};
+
+export const verifyOTPSchema = {
+  body: Joi.object({
+    email: Joi.string().required().email(),
+    otp: Joi.string().length(6).required(),
+  }).required(),
+};

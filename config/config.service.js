@@ -27,3 +27,5 @@ export const User = process.env.user;
 export const Pass = process.env.pass;
 
 export const Prefix = process.env.prefix;
+
+export const Redis_Url = process.env.Redis_Url;

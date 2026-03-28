@@ -4,6 +4,7 @@ import userRouter from "./modules/user/user.controller.js";
 import checkDB from "./DB/connectionDB.js";
 import cors from "cors";
 import { Port } from "../config/config.service.js";
+import { connectRedis } from "./DB/redis/redis.connection.js";
 const app = express();
 const port = Port;
 
@@ -16,6 +17,8 @@ const bootstrap = () => {
   });
 
   checkDB();
+  connectRedis();
+
   app.use("/users", userRouter);
 
   userModel;
