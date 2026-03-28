@@ -63,7 +63,7 @@ const userShcema = mongoose.Schema(
 
     confirmed: {
       type: Boolean,
-      default: false,
+      // default: false,
     },
 
     provider: {

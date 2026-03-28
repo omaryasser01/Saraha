@@ -26,6 +26,49 @@ import { randomUUID } from "crypto";
 import revokeTokenModel from "../../DB/models/revokeToken.model.js";
 import * as redis_services from "../../DB/redis/redis.service.js";
 import { set } from "mongoose";
+import { emailEventEmitter } from "../../common/utils/email.event.js";
+
+//======================================Helper function to send OTP email with rate limiting======================================================
+const sendEmailOTP = async (email) => {
+  const block = await redis_services.ttl(redis_services.block_otp(email));
+  if (block > 0) {
+    throw new Error(
+      `You have exceeded the maximum number of OTP requests. Please try again after ${block} seconds.`,
+    );
+  }
+
+  const OTPttl = await redis_services.ttl(redis_services.otp_key(email));
+  if (OTPttl > 0) {
+    throw new Error(
+      `Please wait ${OTPttl} seconds before requesting a new OTP`,
+    );
+  }
+
+  const otp_count = await redis_services.get(redis_services.otp_count(email));
+  if (otp_count >= 3) {
+    await redis_services.setValue({
+      key: redis_services.block_otp(email),
+      value: 1,
+      ttl: 60 * 7,
+    });
+    throw new Error(
+      "You have exceeded the maximum number of OTP requests. Please try again later.",
+    );
+  }
+
+  let otp = await generateOTP();
+
+  emailEventEmitter.emit("sendOTP", async () => {
+    await sendEmail(email, otp);
+
+    await redis_services.setValue({
+      key: redis_services.otp_key(email),
+      value: hash({ plainText: `${otp}` }),
+      ttl: 2 * 60,
+    });
+    await redis_services.increment(redis_services.otp_count(email));
+  });
+};
 
 //======================================Sign UP======================================================
 
@@ -71,18 +114,20 @@ export const signUp = async (req, res, next) => {
     },
   });
 
-  await sendEmail(email, otp);
+  emailEventEmitter.emit("sendOTP", async () => {
+    await sendEmail(email, otp);
 
-  await redis_services.setValue({
-    key: redis_services.otp_key(email),
-    value: hash({ plainText: `${otp}` }),
-    ttl: 2 * 60,
-  });
+    await redis_services.setValue({
+      key: redis_services.otp_key(email),
+      value: hash({ plainText: `${otp}` }),
+      ttl: 2 * 60,
+    });
 
-  await redis_services.setValue({
-    key: redis_services.otp_count(email),
-    value: 1,
-    ttl: 2 * 60,
+    await redis_services.setValue({
+      key: redis_services.otp_count(email),
+      value: 1,
+      ttl: 2 * 60,
+    });
   });
 
   successResp({
@@ -269,7 +314,7 @@ export const verifyACC = async (req, res, next) => {
     filter: {
       email,
       provider: providerEnum.System,
-      //confirmed: { $exists: false },
+      confirmed: { $exists: false },
     },
     update: { confirmed: true },
   });
@@ -306,7 +351,7 @@ export const resendOTP = async (req, res, next) => {
     filter: {
       email,
       provider: providerEnum.System,
-      //confirmed: { $exists: false },
+      confirmed: { $exists: false },
     },
   });
 
@@ -314,41 +359,7 @@ export const resendOTP = async (req, res, next) => {
     throw new Error("User not found or already confirmed");
   }
 
-  const block = await redis_services.ttl(redis_services.block_otp(email));
-  if (block > 0) {
-    throw new Error(
-      `You have exceeded the maximum number of OTP requests. Please try again after ${block} seconds.`,
-    );
-  }
-
-  const ttl = await redis_services.ttl(redis_services.otp_key(email));
-  if (ttl > 0) {
-    throw new Error(`Please wait ${ttl} seconds before requesting a new OTP`);
-  }
-
-  const otp_count = await redis_services.get(redis_services.otp_count(email));
-  if (otp_count >= 3) {
-    await redis_services.setValue({
-      key: redis_services.block_otp(email),
-      value: 1,
-      ttl: 60 * 7,
-    });
-    throw new Error(
-      "You have exceeded the maximum number of OTP requests. Please try again later.",
-    );
-  }
-
-  let otp = await generateOTP();
-
-  await sendEmail(user.email, otp);
-
-  await redis_services.setValue({
-    key: redis_services.otp_key(email),
-    value: hash({ plainText: `${otp}` }),
-    ttl: 2 * 60,
-  });
-
-  await redis_services.increment(redis_services.otp_count(email));
+  await sendEmailOTP(email);
 
   successResp({
     res,

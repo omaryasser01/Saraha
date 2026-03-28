@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { Pass, User } from "../../../config/config.service.js";
+import { emailTemp } from "./email.template.js";
 
 export const sendEmail = async (to, otp) => {
   const transporter = nodemailer.createTransport({
@@ -14,7 +15,7 @@ export const sendEmail = async (to, otp) => {
     from: User,
     to,
     subject: "Welcome to Saraha App - Your OTP Code",
-    html: `<h2>Your OTP is: ${otp}</h2>`,
+    html: emailTemp(otp),
   });
 
   return console.log(info.accepted.length > 0 ? true : false);
