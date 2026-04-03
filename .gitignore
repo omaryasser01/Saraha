@@ -1,3 +1,4 @@
 node_modules
 uploads
-cloudinary 
+src/common/utils/cloudinary.js
+config/.env.*

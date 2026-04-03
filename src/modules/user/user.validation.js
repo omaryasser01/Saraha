@@ -86,3 +86,12 @@ export const verifyOTPSchema = {
     otp: Joi.string().length(6).required(),
   }).required(),
 };
+
+export const resetPassSchema = {
+  body: Joi.object({
+    email: Joi.string().required().email(),
+    otp: Joi.string().length(6).required(),
+    newPass: Joi.string().required(),
+    cPassword: Joi.string().valid(Joi.ref("newPass")).required(),
+  }).required(),
+};

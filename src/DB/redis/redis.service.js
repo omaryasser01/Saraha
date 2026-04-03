@@ -1,15 +1,16 @@
+import { emailEnum } from "../../common/enum/user.enum.js";
 import { redis_client } from "./redis.connection.js";
 
-export const otp_key = (email) => {
-  return `otp::${email}`;
+export const otp_key = ({ email, subject = emailEnum.confirmEmail }) => {
+  return `otp::${email}::${subject}`;
 };
 
-export const otp_count = (email) => {
-  return `otp::${email}::count`;
+export const otp_count = ({ email }) => {
+  return `${otp_key({ email })}::count`;
 };
 
-export const block_otp = (email) => {
-  return `otp::${email}::block`;
+export const block_otp = ({ email }) => {
+  return `${otp_key({ email })}::block`;
 };
 
 export const setValue = async ({ key, value, ttl }) => {

@@ -13,7 +13,7 @@ import * as db_service from "../../DB/models/db.service.js";
 import userModel from "../../DB/models/users.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { OAuth2Client } from "google-auth-library";
-import { providerEnum } from "../../common/enum/user.enum.js";
+import { emailEnum, providerEnum } from "../../common/enum/user.enum.js";
 import {
   Audience,
   SaltRounds,
@@ -29,25 +29,29 @@ import { set } from "mongoose";
 import { emailEventEmitter } from "../../common/utils/email.event.js";
 
 //======================================Helper function to send OTP email with rate limiting======================================================
-const sendEmailOTP = async (email) => {
-  const block = await redis_services.ttl(redis_services.block_otp(email));
+const sendEmailOTP = async ({ email, subject } = {}) => {
+  const block = await redis_services.ttl(redis_services.block_otp({ email }));
   if (block > 0) {
     throw new Error(
       `You have exceeded the maximum number of OTP requests. Please try again after ${block} seconds.`,
     );
   }
 
-  const OTPttl = await redis_services.ttl(redis_services.otp_key(email));
+  const OTPttl = await redis_services.ttl(
+    redis_services.otp_key({ email, subject }),
+  );
   if (OTPttl > 0) {
     throw new Error(
       `Please wait ${OTPttl} seconds before requesting a new OTP`,
     );
   }
 
-  const otp_count = await redis_services.get(redis_services.otp_count(email));
+  const otp_count = await redis_services.get(
+    redis_services.otp_count({ email }),
+  );
   if (otp_count >= 3) {
     await redis_services.setValue({
-      key: redis_services.block_otp(email),
+      key: redis_services.block_otp({ email }),
       value: 1,
       ttl: 60 * 7,
     });
@@ -62,11 +66,11 @@ const sendEmailOTP = async (email) => {
     await sendEmail(email, otp);
 
     await redis_services.setValue({
-      key: redis_services.otp_key(email),
+      key: redis_services.otp_key({ email, subject }),
       value: hash({ plainText: `${otp}` }),
       ttl: 2 * 60,
     });
-    await redis_services.increment(redis_services.otp_count(email));
+    await redis_services.increment(redis_services.otp_count({ email }));
   });
 };
 
@@ -118,13 +122,13 @@ export const signUp = async (req, res, next) => {
     await sendEmail(email, otp);
 
     await redis_services.setValue({
-      key: redis_services.otp_key(email),
+      key: redis_services.otp_key({ email, subject: emailEnum.confirmEmail }),
       value: hash({ plainText: `${otp}` }),
       ttl: 2 * 60,
     });
 
     await redis_services.setValue({
-      key: redis_services.otp_count(email),
+      key: redis_services.otp_count({ email }),
       value: 1,
       ttl: 2 * 60,
     });
@@ -301,7 +305,9 @@ export const getProfile = async (req, res, next) => {
 export const verifyACC = async (req, res, next) => {
   const { email, otp } = req.body;
 
-  const otpValue = await redis_services.get(redis_services.otp_key(email));
+  const otpValue = await redis_services.get(
+    redis_services.otp_key({ email, subject: emailEnum.confirmEmail }),
+  );
   if (!otpValue) {
     throw new Error("OTP expired");
   }
@@ -331,16 +337,6 @@ export const verifyACC = async (req, res, next) => {
     message: "Account verified successfully",
   });
 };
-// if (otp !== user.otp || user.otpExpires < Date.now()) {
-//   throw new Error("inValid or expired otp");
-// }
-
-// user.otp = null;
-// user.otpExpires = null;
-// user.confirmed = true;
-
-// await user.save();
-
 //======================================resend OTP======================================================
 
 export const resendOTP = async (req, res, next) => {
@@ -359,7 +355,7 @@ export const resendOTP = async (req, res, next) => {
     throw new Error("User not found or already confirmed");
   }
 
-  await sendEmailOTP(email);
+  await sendEmailOTP({ email, subject: emailEnum.confirmEmail });
 
   successResp({
     res,
@@ -423,6 +419,7 @@ export const updatePassword = async (req, res, next) => {
   const hashed = hash({ plainText: newPass });
 
   req.user.password = hashed;
+  req.user.changeCred = new Date();
 
   await req.user.save();
 
@@ -446,4 +443,63 @@ export const logOut = async (req, res, next) => {
   }
 
   successResp({ res });
+};
+
+//========================================forget password=============================
+export const forgetPass = async (req, res, next) => {
+  const { email } = req.body;
+
+  const user = await db_service.findOne({
+    model: userModel,
+    filter: {
+      email,
+      confirmed: { $exists: true },
+      provider: providerEnum.System,
+    },
+  });
+
+  if (!user) {
+    throw new Error("user not exists");
+  }
+
+  await sendEmailOTP({ email, subject: emailEnum.forgetPass });
+
+  successResp({ res, message: "OTP sent to your email" });
+};
+
+//========================================reset password=============================
+export const resetPass = async (req, res, next) => {
+  const { email, otp, newPass } = req.body;
+
+  const otpValuea = await redis_services.get(
+    redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
+  );
+
+  if (!otpValuea) {
+    throw new Error("OTP expired");
+  }
+
+  if (!compare({ plainText: otp, cipherText: otpValuea })) {
+    throw new Error("inValid OTP");
+  }
+
+  const user = await db_service.findOneAndUpdate({
+    model: userModel,
+    filter: {
+      email,
+      confirmed: { $exists: true },
+      provider: providerEnum.System,
+    },
+    update: { password: hash({ plainText: newPass }) },
+  });
+
+  if (!user) {
+    throw new Error("user not exists");
+  }
+
+  await redis_services.deleteKey(
+    redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
+  );
+
+  successResp({ res, message: "Password reset successfully" });
 };

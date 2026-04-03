@@ -16,6 +16,8 @@ export const SaltRounds = process.env.SaltRounds;
 
 export const DB_URi = process.env.DB_URi;
 
+export const DB_URi_online = process.env.DB_URi_online;
+
 export const Access_Secret_key = process.env.access_Secret_key;
 
 export const Refresh_Secret_key = process.env.refresh_Secret_key;
@@ -29,3 +31,5 @@ export const Pass = process.env.pass;
 export const Prefix = process.env.prefix;
 
 export const Redis_Url = process.env.Redis_Url;
+
+export const white_list = process.env.white_list.split(",") || [];

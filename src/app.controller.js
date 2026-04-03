@@ -3,13 +3,38 @@ import userModel from "./DB/models/users.model.js";
 import userRouter from "./modules/user/user.controller.js";
 import checkDB from "./DB/connectionDB.js";
 import cors from "cors";
-import { Port } from "../config/config.service.js";
+import { Port, white_list } from "../config/config.service.js";
 import { connectRedis } from "./DB/redis/redis.connection.js";
+import messageRouter from "./modules/messages/message.controller.js";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 const app = express();
 const port = Port;
 
 const bootstrap = () => {
-  app.use(cors(), express.json());
+  const limiter = rateLimit(
+    {
+      windowMs: 60 * 3 * 1000,
+      limit: 5,
+    },
+    { legacyHeaders: false },
+  );
+
+  const corsOptions = {
+    origin: (origin, callback) => {
+      if ([...white_list, undefined].includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+  };
+
+  app.use(
+    cors(corsOptions),
+    helmet(), //limiter,
+    express.json(),
+  );
   app.use("/uploads", express.static("uploads"));
 
   app.get("/", (req, res, next) => {
@@ -20,6 +45,7 @@ const bootstrap = () => {
   connectRedis();
 
   app.use("/users", userRouter);
+  app.use("/messages", messageRouter);
 
   userModel;
 
