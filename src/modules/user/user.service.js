@@ -462,6 +462,14 @@ export const forgetPass = async (req, res, next) => {
     throw new Error("user not exists");
   }
 
+  const resetTOken = generateToken({
+    payload: {
+      id: user._id,
+      email: user.email,
+    },
+    secret_key: Access_Secret_key,
+  });
+
   await sendEmailOTP({ email, subject: emailEnum.forgetPass });
 
   successResp({ res, message: "OTP sent to your email" });
