@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import { DB_URi_online } from "../../config/config.service.js";
+import { DB_URi } from "../../config/config.service.js";
 
 const checkDB = async () => {
   await mongoose
-    .connect(DB_URi_online, {
+    .connect(DB_URi, {
       serverSelectionTimeoutMS: 5000,
     })
     .then(() => {

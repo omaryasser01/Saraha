@@ -468,46 +468,59 @@ export const forgetPass = async (req, res, next) => {
       email: user.email,
     },
     secret_key: Access_Secret_key,
+    options: {
+      expiresIn: "15m",
+      noTimestamp: true,
+      jwtid: uuidv4(),
+    },
   });
 
-  await sendEmailOTP({ email, subject: emailEnum.forgetPass });
+  const tokenHash = hash({ plainText: resetTOken });
+  await redis_services.setValue({
+    key: redis_services.reset_pass_key(email),
+    value: tokenHash,
+    ttl: 15 * 60,
+  });
+
+  await sendEmail(email, `Your password reset token: ${resetTOken}`);
+  //await sendEmailOTP({ email, subject: emailEnum.forgetPass });
 
   successResp({ res, message: "OTP sent to your email" });
 };
 
 //========================================reset password=============================
-export const resetPass = async (req, res, next) => {
-  const { email, otp, newPass } = req.body;
+// export const resetPass = async (req, res, next) => {
+//   const { email, otp, newPass } = req.body;
 
-  const otpValuea = await redis_services.get(
-    redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
-  );
+//   const otpValuea = await redis_services.get(
+//     redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
+//   );
 
-  if (!otpValuea) {
-    throw new Error("OTP expired");
-  }
+//   if (!otpValuea) {
+//     throw new Error("OTP expired");
+//   }
 
-  if (!compare({ plainText: otp, cipherText: otpValuea })) {
-    throw new Error("inValid OTP");
-  }
+//   if (!compare({ plainText: otp, cipherText: otpValuea })) {
+//     throw new Error("inValid OTP");
+//   }
 
-  const user = await db_service.findOneAndUpdate({
-    model: userModel,
-    filter: {
-      email,
-      confirmed: { $exists: true },
-      provider: providerEnum.System,
-    },
-    update: { password: hash({ plainText: newPass }) },
-  });
+//   const user = await db_service.findOneAndUpdate({
+//     model: userModel,
+//     filter: {
+//       email,
+//       confirmed: { $exists: true },
+//       provider: providerEnum.System,
+//     },
+//     update: { password: hash({ plainText: newPass }) },
+//   });
 
-  if (!user) {
-    throw new Error("user not exists");
-  }
+//   if (!user) {
+//     throw new Error("user not exists");
+//   }
 
-  await redis_services.deleteKey(
-    redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
-  );
+//   await redis_services.deleteKey(
+//     redis_services.otp_key({ email, subject: emailEnum.forgetPass }),
+//   );
 
-  successResp({ res, message: "Password reset successfully" });
-};
+//   successResp({ res, message: "Password reset successfully" });
+// };
